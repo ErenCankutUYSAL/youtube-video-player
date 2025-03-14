@@ -11,13 +11,15 @@
         <h1>Video Oynatıcı</h1>
         <div class="video-container">
             <div id="player"></div>
-            <ul id="videoList" class="video-list">
-                <li data-url="https://www.youtube.com/watch?v=VXMR3YQ7W3s">Video 1</li>
-                <li data-url="https://www.youtube.com/watch?v=0p11xT9i8QM">Video 2</li>
-                <li data-url="https://www.youtube.com/watch?v=ztmY_cCtUl0">Video 3</li>
-                <li data-url="https://www.youtube.com/watch?v=RNVNlJSUFoE">Video 4</li>
-                <li data-url="https://www.youtube.com/watch?v=6g_DvD8e2T0">Video 5</li>
-            </ul>
+            <div class="list-container">
+                <div class="list-header">
+                    <h2>Video Listesi</h2>
+                    <button onclick="addNewVideo()" class="add-button">+ Yeni Video Ekle</button>
+                </div>
+                <ul id="videoList" class="video-list">
+                    <li class="loading">Videolar yükleniyor...</li>
+                </ul>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>
