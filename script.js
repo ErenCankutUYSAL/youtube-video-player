@@ -30,11 +30,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const response = await fetch(`${proxyUrl}https://www.youtube.com/watch?v=${videoId}`);
             const html = await response.text();
             
-            // HTML içeriğini parse et
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             
-            // Meta verilerini çıkar
             const title = doc.querySelector('meta[property="og:title"]')?.content || 'Video Başlığı Bulunamadı';
             const thumbnail = doc.querySelector('meta[property="og:image"]')?.content || '';
             const channelName = doc.querySelector('link[itemprop="name"]')?.content || 'Kanal Adı Bulunamadı';
@@ -58,7 +56,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function loadChannelList() {
         try {
-            const response = await fetch('list.txt');
+            const response = await fetch('/getList');
             const text = await response.text();
             return text.split('\n').filter(url => url.trim() !== '');
         } catch (error) {
@@ -116,27 +114,28 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Yeni video URL'si ekleme fonksiyonu
-    window.addNewVideo = function() {
+    window.addNewVideo = async function() {
         const newUrl = prompt('Yeni video URL\'sini girin:');
         if (newUrl && newUrl.includes('youtube.com/watch?v=')) {
-            fetch('list.txt')
-                .then(response => response.text())
-                .then(content => {
-                    const urls = content.split('\n').filter(url => url.trim() !== '');
-                    if (!urls.includes(newUrl)) {
-                        urls.push(newUrl);
-                        const newContent = urls.join('\n');
-                        // Burada sunucuya kaydetme işlemi yapılmalı
-                        // Şimdilik sadece listeyi güncelliyoruz
-                        updateVideoList();
-                    } else {
-                        alert('Bu video zaten listede!');
-                    }
-                })
-                .catch(error => {
-                    console.error('Yeni video eklenirken hata:', error);
-                    alert('Video eklenirken bir hata oluştu.');
+            try {
+                const response = await fetch('/addVideo', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url: newUrl })
                 });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                updateVideoList();
+            } catch (error) {
+                console.error('Yeni video eklenirken hata:', error);
+                alert('Video eklenirken bir hata oluştu: ' + error.message);
+            }
         } else {
             alert('Geçerli bir YouTube video URL\'si girin.');
         }
