@@ -1,12 +1,14 @@
 # YouTube Canlı Yayın Oynatıcı
 
-Bu web uygulaması, YouTube'daki aktif canlı yayınları otomatik olarak listeler ve seçilen yayını oynatır.
+Bu web uygulaması, YouTube'daki aktif canlı yayınları otomatik olarak listeler ve seçilen yayını oynatır. API anahtarı gerektirmez!
 
 ## Özellikler
 
 - YouTube'daki canlı yayınları otomatik listeleme
+- API anahtarı gerektirmez
 - Yayın önizleme resimleri
 - Kanal adı ve yayın başlığı gösterimi
+- İzleyici sayısı gösterimi
 - Responsive tasarım
 - Otomatik yayın listesi güncelleme (5 dakikada bir)
 - Modern ve kullanıcı dostu arayüz
@@ -18,18 +20,14 @@ Bu web uygulaması, YouTube'daki aktif canlı yayınları otomatik olarak listel
 git clone https://github.com/ErenCankutUYSAL/youtube-video-player.git
 ```
 
-2. YouTube Data API anahtarı alın:
-   - [Google Cloud Console](https://console.cloud.google.com/)'a gidin
-   - Yeni bir proje oluşturun
-   - YouTube Data API v3'ü etkinleştirin
-   - Kimlik bilgileri oluşturun (API anahtarı)
+2. CORS proxy sunucusu kurun (isteğe bağlı):
+   - Varsayılan olarak `cors-anywhere.herokuapp.com` kullanılmaktadır
+   - Kendi proxy sunucunuzu kurmak için:
+     - [CORS Anywhere](https://github.com/Rob--W/cors-anywhere) repository'sini klonlayın
+     - Kendi sunucunuza deploy edin
+     - `script.js` dosyasındaki `proxyUrl` değişkenini güncelleyin
 
-3. API anahtarınızı `script.js` dosyasında güncelleyin:
-```javascript
-const API_KEY = 'YOUR_API_KEY'; // Bu satırı kendi API anahtarınızla değiştirin
-```
-
-4. `index.html` dosyasını bir web tarayıcısında açın
+3. `index.html` dosyasını bir web tarayıcısında açın
 
 ## Kullanım
 
@@ -37,6 +35,10 @@ const API_KEY = 'YOUR_API_KEY'; // Bu satırı kendi API anahtarınızla değiş
 - Listeden bir yayın seçin ve otomatik olarak oynatılacaktır
 - Liste 5 dakikada bir otomatik olarak güncellenir
 - Yayın listesi kaydırılabilir, böylece tüm yayınları görebilirsiniz
+
+## Önemli Not
+
+Bu uygulama web scraping yöntemini kullanmaktadır. YouTube'un sayfa yapısında değişiklik olması durumunda güncelleme gerekebilir.
 
 ## Geliştirme
 
