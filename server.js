@@ -21,7 +21,7 @@ app.get('/getList', (req, res) => {
 
 // list.txt dosyasına yazma endpoint'i
 app.post('/addVideo', (req, res) => {
-    const { url } = req.body;
+    const { url, channelName } = req.body;
     if (!url) {
         res.status(400).send('URL gerekli');
         return;
@@ -34,17 +34,21 @@ app.post('/addVideo', (req, res) => {
         }
 
         const urls = data.split('\n').filter(line => line.trim() !== '');
+        
+        // URL'nin zaten listede olup olmadığını kontrol et
         if (urls.includes(url)) {
-            res.status(400).send('Bu URL zaten listede mevcut');
+            res.status(400).send('Bu kanal zaten listede mevcut');
             return;
         }
 
-        fs.appendFile('list.txt', '\n' + url, (err) => {
+        // Yeni URL'yi dosyaya ekle
+        const newLine = urls.length > 0 ? '\n' + url : url;
+        fs.appendFile('list.txt', newLine, (err) => {
             if (err) {
                 res.status(500).send('Dosya yazma hatası');
                 return;
             }
-            res.send('URL başarıyla eklendi');
+            res.send(`${channelName} başarıyla eklendi`);
         });
     });
 });
