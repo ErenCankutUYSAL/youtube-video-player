@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ></iframe>`;
     }
 
-    async function fetchVideoInfo(videoUrl) {
+    async function fetchChannelInfo(videoUrl) {
         try {
             const videoId = videoUrl.split('v=')[1];
             const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
@@ -33,23 +33,27 @@ document.addEventListener('DOMContentLoaded', function() {
             const parser = new DOMParser();
             const doc = parser.parseFromString(html, 'text/html');
             
-            const title = doc.querySelector('meta[property="og:title"]')?.content || 'Video Başlığı Bulunamadı';
-            const thumbnail = doc.querySelector('meta[property="og:image"]')?.content || '';
-            const channelName = doc.querySelector('link[itemprop="name"]')?.content || 'Kanal Adı Bulunamadı';
+            // Kanal adını bul
+            const channelName = doc.querySelector('link[itemprop="name"]')?.content || 
+                              doc.querySelector('meta[name="author"]')?.content ||
+                              'Kanal Adı Bulunamadı';
+            
+            // Kanal URL'sini bul
+            const channelUrl = doc.querySelector('link[itemprop="url"]')?.href || 
+                             doc.querySelector('span[itemprop="author"] link[itemprop="url"]')?.href ||
+                             videoUrl;
             
             return {
                 id: videoId,
-                title,
-                thumbnail,
-                channelName
+                channelName,
+                channelUrl
             };
         } catch (error) {
-            console.error('Video bilgileri alınırken hata:', error);
+            console.error('Kanal bilgileri alınırken hata:', error);
             return {
                 id: videoUrl.split('v=')[1],
-                title: 'Video Bilgisi Alınamadı',
-                thumbnail: '',
-                channelName: 'Bilinmeyen Kanal'
+                channelName: 'Bilinmeyen Kanal',
+                channelUrl: videoUrl
             };
         }
     }
@@ -68,40 +72,43 @@ document.addEventListener('DOMContentLoaded', function() {
     async function updateVideoList() {
         try {
             const urls = await loadChannelList();
-            videoList.innerHTML = '<li class="loading">Videolar yükleniyor...</li>';
+            videoList.innerHTML = '<li class="loading">Kanallar yükleniyor...</li>';
             
-            const videoPromises = urls.map(url => fetchVideoInfo(url.trim()));
-            const videos = await Promise.all(videoPromises);
+            const channelPromises = urls.map(url => fetchChannelInfo(url.trim()));
+            const channels = await Promise.all(channelPromises);
+            
+            // Kanalları benzersiz yap (aynı kanaldan birden fazla video varsa tek göster)
+            const uniqueChannels = Array.from(new Map(
+                channels.map(channel => [channel.channelName, channel])
+            ).values());
             
             videoList.innerHTML = '';
-            videos.forEach(video => {
+            uniqueChannels.forEach(channel => {
                 const li = document.createElement('li');
-                li.setAttribute('data-url', `https://www.youtube.com/watch?v=${video.id}`);
+                li.setAttribute('data-url', `https://www.youtube.com/watch?v=${channel.id}`);
                 li.innerHTML = `
-                    <div class="stream-item">
-                        <img src="${video.thumbnail}" alt="${video.title}" onerror="this.src='placeholder.png'">
-                        <div class="stream-info">
-                            <h3>${video.title}</h3>
-                            <p>${video.channelName}</p>
+                    <div class="channel-item">
+                        <div class="channel-info">
+                            <h3>${channel.channelName}</h3>
                         </div>
                     </div>
                 `;
                 videoList.appendChild(li);
             });
 
-            // İlk videoyu otomatik oynat
-            const firstVideo = videoList.querySelector('li');
-            if (firstVideo) {
-                const videoUrl = firstVideo.getAttribute('data-url');
-                playVideo(videoUrl, firstVideo);
+            // İlk kanalı otomatik seç
+            const firstChannel = videoList.querySelector('li');
+            if (firstChannel) {
+                const videoUrl = firstChannel.getAttribute('data-url');
+                playVideo(videoUrl, firstChannel);
             }
         } catch (error) {
-            console.error('Video listesi güncellenirken hata:', error);
-            videoList.innerHTML = '<li class="error">Videolar yüklenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.</li>';
+            console.error('Kanal listesi güncellenirken hata:', error);
+            videoList.innerHTML = '<li class="error">Kanallar yüklenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.</li>';
         }
     }
 
-    // Her 5 dakikada bir video listesini güncelle
+    // Her 5 dakikada bir kanal listesini güncelle
     updateVideoList();
     setInterval(updateVideoList, 5 * 60 * 1000);
 
@@ -118,12 +125,18 @@ document.addEventListener('DOMContentLoaded', function() {
         const newUrl = prompt('Yeni video URL\'sini girin:');
         if (newUrl && newUrl.includes('youtube.com/watch?v=')) {
             try {
+                // Önce kanal bilgilerini al
+                const channelInfo = await fetchChannelInfo(newUrl);
+                
                 const response = await fetch('/addVideo', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ url: newUrl })
+                    body: JSON.stringify({ 
+                        url: newUrl,
+                        channelName: channelInfo.channelName 
+                    })
                 });
 
                 if (!response.ok) {
@@ -132,9 +145,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 updateVideoList();
+                alert(`"${channelInfo.channelName}" kanalı başarıyla eklendi!`);
             } catch (error) {
-                console.error('Yeni video eklenirken hata:', error);
-                alert('Video eklenirken bir hata oluştu: ' + error.message);
+                console.error('Yeni kanal eklenirken hata:', error);
+                alert('Kanal eklenirken bir hata oluştu: ' + error.message);
             }
         } else {
             alert('Geçerli bir YouTube video URL\'si girin.');
