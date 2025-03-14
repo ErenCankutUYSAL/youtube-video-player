@@ -1,6 +1,3 @@
-// YouTube API anahtarınızı buraya ekleyin
-const API_KEY = 'YOUR_API_KEY';
-
 document.addEventListener('DOMContentLoaded', function() {
     const videoList = document.getElementById('videoList');
     const player = document.getElementById('player');
@@ -28,36 +25,93 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function fetchLiveStreams() {
         try {
-            const response = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&eventType=live&type=video&maxResults=25&key=${API_KEY}`);
-            const data = await response.json();
+            // CORS proxy URL - Bu URL'yi kendi proxy sunucunuzla değiştirin
+            const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+            const youtubeUrl = 'https://www.youtube.com/live';
             
-            if (data.items) {
-                videoList.innerHTML = ''; // Mevcut listeyi temizle
-                data.items.forEach(item => {
-                    const li = document.createElement('li');
-                    li.setAttribute('data-url', `https://www.youtube.com/watch?v=${item.id.videoId}`);
-                    li.innerHTML = `
-                        <div class="stream-item">
-                            <img src="${item.snippet.thumbnails.default.url}" alt="${item.snippet.title}">
-                            <div class="stream-info">
-                                <h3>${item.snippet.title}</h3>
-                                <p>${item.snippet.channelTitle}</p>
-                            </div>
-                        </div>
-                    `;
-                    videoList.appendChild(li);
-                });
-
-                // İlk videoyu otomatik oynat
-                const firstVideo = videoList.querySelector('li');
-                if (firstVideo) {
-                    const videoUrl = firstVideo.getAttribute('data-url');
-                    playVideo(videoUrl, firstVideo);
+            const response = await fetch(proxyUrl + youtubeUrl);
+            const html = await response.text();
+            
+            // HTML içeriğini parse et
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            
+            // Canlı yayın verilerini çıkar
+            const scripts = doc.querySelectorAll('script');
+            let initialData;
+            
+            scripts.forEach(script => {
+                if (script.textContent.includes('ytInitialData')) {
+                    const match = script.textContent.match(/var ytInitialData = (.+);/);
+                    if (match) {
+                        initialData = JSON.parse(match[1]);
+                    }
                 }
+            });
+
+            if (initialData) {
+                // Canlı yayınları bul ve listeye ekle
+                const streams = extractLiveStreams(initialData);
+                updateVideoList(streams);
             }
         } catch (error) {
             console.error('Canlı yayınlar yüklenirken hata oluştu:', error);
             videoList.innerHTML = '<li class="error">Canlı yayınlar yüklenirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.</li>';
+        }
+    }
+
+    function extractLiveStreams(data) {
+        const streams = [];
+        try {
+            // YouTube'un veri yapısını analiz et ve canlı yayınları çıkar
+            const contents = data.contents.twoColumnBrowseResultsRenderer.tabs[0].tabRenderer.content.sectionListRenderer.contents;
+            
+            contents.forEach(section => {
+                if (section.itemSectionRenderer) {
+                    const items = section.itemSectionRenderer.contents;
+                    items.forEach(item => {
+                        if (item.videoRenderer) {
+                            const video = item.videoRenderer;
+                            streams.push({
+                                id: video.videoId,
+                                title: video.title.runs[0].text,
+                                thumbnail: video.thumbnail.thumbnails[0].url,
+                                channel: video.ownerText.runs[0].text,
+                                viewers: video.viewCountText?.runs[0]?.text || '0 izleyici'
+                            });
+                        }
+                    });
+                }
+            });
+        } catch (error) {
+            console.error('Veri çıkarma hatası:', error);
+        }
+        return streams;
+    }
+
+    function updateVideoList(streams) {
+        videoList.innerHTML = '';
+        streams.forEach(stream => {
+            const li = document.createElement('li');
+            li.setAttribute('data-url', `https://www.youtube.com/watch?v=${stream.id}`);
+            li.innerHTML = `
+                <div class="stream-item">
+                    <img src="${stream.thumbnail}" alt="${stream.title}">
+                    <div class="stream-info">
+                        <h3>${stream.title}</h3>
+                        <p>${stream.channel}</p>
+                        <span class="viewers">${stream.viewers}</span>
+                    </div>
+                </div>
+            `;
+            videoList.appendChild(li);
+        });
+
+        // İlk videoyu otomatik oynat
+        const firstVideo = videoList.querySelector('li');
+        if (firstVideo) {
+            const videoUrl = firstVideo.getAttribute('data-url');
+            playVideo(videoUrl, firstVideo);
         }
     }
 
