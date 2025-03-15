@@ -1,55 +1,94 @@
-# YouTube Canlı Yayın Oynatıcı
+# YouTube Video Player
 
-Bu web uygulaması, YouTube'daki aktif canlı yayınları otomatik olarak listeler ve seçilen yayını oynatır. API anahtarı gerektirmez!
+Bu proje, YouTube kanallarını kolayca izleyebileceğiniz bir web uygulamasıdır. Kanal listesini `list.txt` dosyasından okur ve seçilen kanalı otomatik olarak oynatır.
 
 ## Özellikler
 
-- YouTube'daki canlı yayınları otomatik listeleme
-- API anahtarı gerektirmez
-- Yayın önizleme resimleri
-- Kanal adı ve yayın başlığı gösterimi
-- İzleyici sayısı gösterimi
+- YouTube kanallarını liste halinde görüntüleme
+- Otomatik kanal adı çekme
+- Kanal listesini `list.txt` dosyasından okuma
+- Yeni kanal ekleme özelliği
 - Responsive tasarım
-- Otomatik yayın listesi güncelleme (5 dakikada bir)
-- Modern ve kullanıcı dostu arayüz
+- 5 dakikada bir otomatik liste güncelleme
 
 ## Kurulum
 
-1. Repository'yi klonlayın:
+1. Projeyi klonlayın:
 ```bash
 git clone https://github.com/ErenCankutUYSAL/youtube-video-player.git
+cd youtube-video-player
 ```
 
-2. CORS proxy sunucusu kurun (isteğe bağlı):
-   - Varsayılan olarak `cors-anywhere.herokuapp.com` kullanılmaktadır
-   - Kendi proxy sunucunuzu kurmak için:
-     - [CORS Anywhere](https://github.com/Rob--W/cors-anywhere) repository'sini klonlayın
-     - Kendi sunucunuza deploy edin
-     - `script.js` dosyasındaki `proxyUrl` değişkenini güncelleyin
+2. Gerekli paketleri yükleyin:
+```bash
+npm install
+```
 
-3. `index.html` dosyasını bir web tarayıcısında açın
+3. Sunucuyu başlatın:
+```bash
+npm run server
+```
 
-## Kullanım
+4. Yeni bir terminal açın ve React uygulamasını başlatın:
+```bash
+npm start
+```
 
-- Sayfa yüklendiğinde, mevcut canlı yayınlar otomatik olarak listelenir
-- Listeden bir yayın seçin ve otomatik olarak oynatılacaktır
-- Liste 5 dakikada bir otomatik olarak güncellenir
-- Yayın listesi kaydırılabilir, böylece tüm yayınları görebilirsiniz
+5. Tarayıcınızda `http://localhost:3000` adresine gidin
 
-## Önemli Not
+## Kanal Listesi Formatı
 
-Bu uygulama web scraping yöntemini kullanmaktadır. YouTube'un sayfa yapısında değişiklik olması durumunda güncelleme gerekebilir.
+Kanallar `list.txt` dosyasında aşağıdaki formatta saklanır:
+
+```
+https://www.youtube.com/watch?v=VIDEO_ID | Kanal Adı
+```
+
+Örnek:
+```
+https://www.youtube.com/watch?v=jfKfPfyJRdk | Lofi Girl
+https://www.youtube.com/watch?v=5qap5aO4i9A | ChilledCow
+```
+
+## Teknolojiler
+
+- React
+- TypeScript
+- Express.js
+- Axios
+- Cheerio
 
 ## Geliştirme
 
-Yeni özellikler eklemek veya mevcut özellikleri değiştirmek için:
+### Sunucu (server.js)
 
-1. Repository'yi forklayın
-2. Yeni bir branch oluşturun (`git checkout -b feature/yeniOzellik`)
-3. Değişikliklerinizi commit edin (`git commit -am 'Yeni özellik: Açıklama'`)
-4. Branch'inizi push edin (`git push origin feature/yeniOzellik`)
+Sunucu aşağıdaki endpoint'leri sağlar:
+
+- `GET /getList`: Kanal listesini döndürür
+- `GET /getVideoInfo`: YouTube video bilgilerini çeker
+- `POST /addVideo`: Yeni kanal ekler
+
+### Frontend (App.tsx)
+
+- Video oynatıcı
+- Kanal listesi
+- Yeni kanal ekleme arayüzü
+- Responsive tasarım
+
+## Katkıda Bulunma
+
+1. Bu projeyi fork edin
+2. Feature branch oluşturun (`git checkout -b feature/amazing-feature`)
+3. Değişikliklerinizi commit edin (`git commit -m 'Add some amazing feature'`)
+4. Branch'inizi push edin (`git push origin feature/amazing-feature`)
 5. Pull Request oluşturun
 
 ## Lisans
 
-MIT
+Bu proje MIT lisansı altında lisanslanmıştır. Detaylar için [LICENSE](LICENSE) dosyasına bakın.
+
+## İletişim
+
+Eren Cankut UYSAL - [@ErenCankutUYSAL](https://github.com/ErenCankutUYSAL)
+
+Proje Linki: [https://github.com/ErenCankutUYSAL/youtube-video-player](https://github.com/ErenCankutUYSAL/youtube-video-player)
