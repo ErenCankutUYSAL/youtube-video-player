@@ -21,14 +21,28 @@ app.get('/getList', async (req, res) => {
             data = await fs.readFile('list.txt', 'utf8');
         } catch (error) {
             if (error.code === 'ENOENT') {
-                await fs.writeFile('list.txt', '');
-                data = '';
+                await fs.writeFile('list.txt', '[]');
+                data = '[]';
             } else {
                 throw error;
             }
         }
-        const urls = data.split('\n').filter(url => url.trim() !== '');
-        res.json(urls);
+
+        // Parse the JSON data
+        let items = [];
+        try {
+            items = JSON.parse(data);
+        } catch (error) {
+            // If the file is in old format, convert it
+            const oldUrls = data.split('\n').filter(url => url.trim() !== '');
+            items = oldUrls.map(url => ({
+                url,
+                type: url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' : 'custom'
+            }));
+            // Save in new format
+            await fs.writeFile('list.txt', JSON.stringify(items, null, 2));
+        }
+        res.json(items);
     } catch (error) {
         console.error('Error reading file:', error);
         res.status(500).send('Error reading file');
@@ -58,7 +72,7 @@ app.get('/getVideoInfo', async (req, res) => {
                      $('.ytp-title-link').text() ||
                      'Unknown Channel';
 
-        res.json({ channelName });
+        res.json({ channelName: channelName.trim() });
     } catch (error) {
         console.error('Error fetching video info:', error);
         res.status(500).send('Error fetching video info');
@@ -67,16 +81,16 @@ app.get('/getVideoInfo', async (req, res) => {
 
 // POST endpoint for adding new videos
 app.post('/addVideo', async (req, res) => {
-    const { url } = req.body;
+    const { url, type } = req.body;
     if (!url) {
         return res.status(400).send('URL is required');
     }
 
     try {
-        let existingUrls = [];
+        let items = [];
         try {
             const data = await fs.readFile('list.txt', 'utf8');
-            existingUrls = data.split('\n').filter(line => line.trim() !== '');
+            items = JSON.parse(data);
         } catch (error) {
             if (error.code !== 'ENOENT') {
                 throw error;
@@ -84,33 +98,20 @@ app.post('/addVideo', async (req, res) => {
         }
 
         // Check if URL already exists
-        if (existingUrls.includes(url)) {
+        if (items.some(item => item.url === url)) {
             return res.status(400).send('This channel is already in the list');
         }
 
-        // Append new URL to the list
-        const newLine = existingUrls.length > 0 ? '\n' + url : url;
-        await fs.appendFile('list.txt', newLine);
-        
-        // Get channel name
-        try {
-            const response = await axios.get(url, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
-            });
-            
-            const $ = cheerio.load(response.data);
-            const channelName = $('meta[property="og:title"]').attr('content') ||
-                              $('title').text() ||
-                              $('.ytp-title-link').text() ||
-                              'Unknown Channel';
+        // Add new item
+        items.push({
+            url,
+            type: type || (url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' : 'custom')
+        });
 
-            res.json({ message: `${channelName} successfully added`, url });
-        } catch (error) {
-            console.error('Error fetching channel name:', error);
-            res.json({ message: 'Channel added successfully', url });
-        }
+        // Save the updated list
+        await fs.writeFile('list.txt', JSON.stringify(items, null, 2));
+        
+        res.json({ message: 'Channel successfully added', url });
     } catch (error) {
         console.error('Error handling video:', error);
         res.status(500).send('Error saving video');
