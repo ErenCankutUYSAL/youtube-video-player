@@ -25,7 +25,8 @@ if %errorLevel% == 1 (
     @powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))"
     if !errorLevel! == 0 (
         echo [92mChocolatey installed successfully[0m
-        refreshenv
+        :: Refresh environment variables
+        call refreshenv
     ) else (
         echo [91mChocolatey installation failed[0m
         pause
@@ -40,7 +41,8 @@ if %errorLevel% == 1 (
     choco install nodejs -y
     if !errorLevel! == 0 (
         echo [92mNode.js installed successfully[0m
-        refreshenv
+        :: Refresh environment variables
+        call refreshenv
     ) else (
         echo [91mNode.js installation failed[0m
         pause
@@ -48,19 +50,52 @@ if %errorLevel% == 1 (
     )
 )
 
-:: Check and install FFmpeg
+:: Enhanced FFmpeg installation and verification
+echo [93mChecking FFmpeg installation...[0m
+
+:: First, try to find ffmpeg in PATH
 where ffmpeg >nul 2>&1
-if %errorLevel% == 1 (
-    echo [93mInstalling FFmpeg...[0m
-    choco install ffmpeg -y
+if %errorLevel% == 0 (
+    :: Verify FFmpeg functionality
+    ffmpeg -version >nul 2>&1
     if !errorLevel! == 0 (
-        echo [92mFFmpeg installed successfully[0m
-    ) else (
-        echo [91mFFmpeg installation failed[0m
-        pause
-        exit /b 1
+        echo [92mFFmpeg is already installed and working[0m
+        goto FFMPEG_OK
     )
 )
+
+:: If not found or not working, install/reinstall
+echo [93mInstalling/Reinstalling FFmpeg...[0m
+
+:: Remove existing FFmpeg if any
+choco uninstall ffmpeg -y >nul 2>&1
+
+:: Install FFmpeg
+choco install ffmpeg -y --force
+if !errorLevel! == 0 (
+    echo [92mFFmpeg installed successfully[0m
+    :: Refresh environment variables
+    call refreshenv
+    
+    :: Verify installation
+    where ffmpeg >nul 2>&1
+    if !errorLevel! == 0 (
+        ffmpeg -version >nul 2>&1
+        if !errorLevel! == 0 (
+            echo [92mFFmpeg verification successful[0m
+            goto FFMPEG_OK
+        )
+    )
+    echo [91mFFmpeg verification failed after installation[0m
+    pause
+    exit /b 1
+) else (
+    echo [91mFFmpeg installation failed[0m
+    pause
+    exit /b 1
+)
+
+:FFMPEG_OK
 
 :: Check Node.js version
 for /f "tokens=*" %%i in ('node -v') do set NODE_VERSION=%%i
@@ -89,6 +124,15 @@ if %errorLevel% == 0 (
 :: Create recordings directory
 if not exist "recordings" mkdir recordings
 
+:: Verify FFmpeg is in PATH after all installations
+where ffmpeg >nul 2>&1
+if %errorLevel% == 0 (
+    echo [92mFFmpeg is properly set in PATH[0m
+) else (
+    echo [91mWarning: FFmpeg might not be properly set in PATH[0m
+    echo Please restart your computer after installation
+)
+
 echo [92mInstallation completed successfully![0m
 echo ======================================
 
@@ -101,6 +145,18 @@ if errorlevel 1 goto STARTAPP
 :STARTAPP
 :: Start the server and React app
 echo [93mStarting the application...[0m
+
+:: Create a test file using FFmpeg to verify it's working
+echo [93mVerifying FFmpeg functionality...[0m
+ffmpeg -f lavfi -i color=c=black:s=100x100:d=1 -c:v libx264 test_output.mp4
+if %errorLevel% == 0 (
+    echo [92mFFmpeg test successful[0m
+    del test_output.mp4
+) else (
+    echo [91mFFmpeg test failed. Please restart your computer and try again.[0m
+    pause
+    exit /b 1
+)
 
 :: Start the server in a new window
 start "YouTube Video Player Server" cmd /c "echo [93mStarting server...[0m && npm run server"
