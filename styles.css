@@ -1,166 +1,192 @@
+/* Sıfırlama ve kutu modeli ayarları */
 * {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-body {
-    font-family: Arial, sans-serif;
-    line-height: 1.6;
-    background-color: #f0f2f5;
+/* Sayfa boyu kaplasın ve temel font ayarları */
+html, body {
+  width: 100%;
+  height: 100%;
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+  background-color: #f0f2f5;
 }
 
+/* Ana konteyner: Solda video, sağda liste. Tam ekran yükseklik. */
 .container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 20px;
+  display: flex;               /* Yanyana yerleştirme */
+  align-items: flex-start;     /* Üst hizalama */
+  min-height: 100vh;           /* Tam pencere yüksekliği */
+  max-width: 1200px;           /* Opsiyonel: sayfa genişliği limiti */
+  margin: 0 auto;              /* Ortada konumlandır */
+  padding: 20px;               /* Kenar boşlukları */
+  box-sizing: border-box;
 }
 
+/* Başlık */
 h1 {
-    text-align: center;
-    color: #1a73e8;
-    margin-bottom: 30px;
+  text-align: center;
+  color: #1a73e8;
+  margin-bottom: 30px;
 }
 
+/* Video ve liste alanlarını yan yana tutabilmek için bir kapsayıcı */
 .video-container {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
+  flex: 1;                     /* Kalan alanı kapla */
+  margin-right: 20px;          /* Sağdan boşluk */
+  background-color: #000;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
 }
 
+/* Video iframe */
 #player {
-    flex: 1;
-    min-width: 560px;
-    height: 315px;
-    background-color: #000;
-    border-radius: 8px;
-    overflow: hidden;
+  width: 100%;
+  height: 100%;
 }
 
+/* Sağ taraftaki liste konteyneri */
 .list-container {
-    flex: 0 0 300px;
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    display: flex;
-    flex-direction: column;
+  width: 300px;                /* Sabit genişlik */
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  /* Sayfa boyuna yayılmak için (üst/alt padding'leri hesaba katın) */
+  height: calc(100vh - 40px);
 }
 
+/* Liste başlığı */
 .list-header {
-    padding: 15px;
-    border-bottom: 1px solid #eee;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .list-header h2 {
-    font-size: 18px;
-    color: #1a73e8;
+  font-size: 18px;
+  color: #1a73e8;
 }
 
+/* Kanal ekleme butonu */
 .add-button {
-    background-color: #1a73e8;
-    color: white;
-    border: none;
-    padding: 8px 12px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    transition: background-color 0.3s ease;
+  background-color: #1a73e8;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s ease;
 }
 
 .add-button:hover {
-    background-color: #1557b0;
+  background-color: #1557b0;
 }
 
+/* Kanal listesi */
 .video-list {
-    list-style: none;
-    padding: 15px;
-    overflow-y: auto;
-    flex: 1;
+  list-style: none;
+  padding: 15px;
+  margin: 0;
+  /* Yükseklik esnek olsun, sığmazsa scrollbar */
+  flex: 1;
+  overflow-y: auto;
 }
 
+/* Scrollbar stilleri (opsiyonel) */
 .video-list::-webkit-scrollbar {
-    width: 8px;
+  width: 8px;
 }
-
 .video-list::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 4px;
+  background: #f1f1f1;
+  border-radius: 4px;
 }
-
 .video-list::-webkit-scrollbar-thumb {
-    background: #888;
-    border-radius: 4px;
+  background: #888;
+  border-radius: 4px;
 }
-
 .video-list::-webkit-scrollbar-thumb:hover {
-    background: #555;
+  background: #555;
 }
 
+/* Liste içindeki her bir kanal satırı */
 .video-list li {
-    padding: 12px 15px;
-    margin-bottom: 8px;
-    background-color: #f8f9fa;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border-left: 3px solid transparent;
+  padding: 12px 15px;
+  margin-bottom: 8px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-left: 3px solid transparent;
 }
 
 .video-list li:hover {
-    background-color: #e8f0fe;
-    border-left-color: #1a73e8;
-    transform: translateX(5px);
+  background-color: #e8f0fe;
+  border-left-color: #1a73e8;
+  transform: translateX(5px);
 }
 
 .video-list li.active {
-    background-color: #1a73e8;
-    color: white;
-    border-left-color: #0d47a1;
+  background-color: #1a73e8;
+  color: white;
+  border-left-color: #0d47a1;
 }
 
+/* Kanalın içeriğini düzenlemek için */
 .channel-item {
-    display: flex;
-    align-items: center;
+  display: flex;
+  align-items: center;
 }
 
 .channel-info {
-    flex: 1;
+  flex: 1;
 }
 
 .channel-info h3 {
-    font-size: 14px;
-    font-weight: 500;
-    margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  margin: 0;
 }
 
+/* Yükleniyor / hata mesajları */
 .loading {
-    text-align: center;
-    color: #666;
-    padding: 20px;
-    font-style: italic;
+  text-align: center;
+  color: #666;
+  padding: 20px;
+  font-style: italic;
 }
-
 .error {
-    color: #dc3545;
-    padding: 15px;
-    text-align: center;
-    background-color: #f8d7da;
-    border-radius: 4px;
+  color: #dc3545;
+  padding: 15px;
+  text-align: center;
+  background-color: #f8d7da;
+  border-radius: 4px;
 }
 
+/* Küçük ekranlarda (ör. mobil) düzen */
 @media (max-width: 768px) {
-    .video-container {
-        flex-direction: column;
-    }
-    
-    #player {
-        min-width: 100%;
-    }
-    
-    .list-container {
-        width: 100%;
-    }
+  .container {
+    flex-direction: column;  /* Üst üste */
+    min-height: auto;        /* Yükseklik kısıtını kaldırmak isteyebilirsiniz */
+  }
+
+  .video-container {
+    margin-right: 0;
+    width: 100%;
+    min-height: 240px;       /* Ufak ekranlarda minimum video yüksekliği */
+    margin-bottom: 20px;     /* Listeyle arada boşluk */
+  }
+
+  .list-container {
+    width: 100%;
+    height: auto;            /* Mobilde tam boy vermek istemeyebilirsiniz */
+    max-height: 500px;       /* İsterseniz bu şekilde kısıt koyabilirsiniz */
+  }
 }
