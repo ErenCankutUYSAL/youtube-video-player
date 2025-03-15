@@ -5,7 +5,6 @@ import './styles.css';
 interface Video {
   url: string;
   channelName: string;
-  type: 'youtube' | 'custom';
 }
 
 const App: React.FC = () => {
@@ -34,8 +33,13 @@ const App: React.FC = () => {
   };
 
   const addVideo = async () => {
-    const url = prompt('Enter video URL:');
+    const url = prompt('Enter YouTube video URL:');
     if (!url) return;
+
+    if (!url.includes('youtube.com')) {
+      alert('Please enter a valid YouTube URL');
+      return;
+    }
 
     try {
       await axios.post('http://localhost:3001/addVideo', { url });
@@ -51,30 +55,14 @@ const App: React.FC = () => {
       return <div className="no-video">No video selected</div>;
     }
 
-    if (currentVideo.type === 'youtube') {
-      const videoId = currentVideo.url.split('v=')[1];
-      return (
-        <iframe
-          src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        />
-      );
-    } else {
-      // For custom streams like Show TV, embed the video player directly
-      const embedUrl = currentVideo.url.includes('showtv.com.tr') 
-        ? 'https://www.showtv.com.tr/canli-yayin/frame'
-        : currentVideo.url;
-      
-      return (
-        <iframe
-          src={embedUrl}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          style={{ border: 'none', width: '100%', height: '100%' }}
-        />
-      );
-    }
+    const videoId = currentVideo.url.split('v=')[1];
+    return (
+      <iframe
+        src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+      />
+    );
   };
 
   return (
@@ -84,7 +72,7 @@ const App: React.FC = () => {
       </div>
       <div className="list-container">
         <div className="header">
-          <h2>Channels</h2>
+          <h2>YouTube Channels</h2>
           <button className="add-button" onClick={addVideo}>
             Add Channel
           </button>
@@ -98,7 +86,7 @@ const App: React.FC = () => {
             videos.map((video, index) => (
               <div
                 key={index}
-                className={`channel-item ${video.type === 'custom' ? 'custom-stream' : ''}`}
+                className="channel-item"
                 onClick={() => setCurrentVideo(video)}
               >
                 {video.channelName}
