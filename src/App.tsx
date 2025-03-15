@@ -16,10 +16,10 @@ const App: React.FC = () => {
       const response = await fetch(`${API_BASE_URL}/getList`);
       const data = await response.text();
       const urls = data.split('\n').filter(url => url.trim() !== '');
-      const videoList = urls.map(url => ({
+      const videoList = await Promise.all(urls.map(async url => ({
         url,
-        channelName: extractChannelName(url)
-      }));
+        channelName: await extractChannelName(url)
+      })));
       setVideos(videoList);
     } catch (error) {
       console.error('Error loading channel list:', error);
@@ -32,20 +32,31 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [loadChannelList]);
 
-  const extractChannelName = (url: string): string => {
+  const extractChannelName = async (url: string): Promise<string> => {
     try {
+      // Önce URL'den video ID'sini al
+      const videoId = getVideoId(url);
+      if (!videoId) return 'Unknown Channel';
+
+      // YouTube sayfasını getir
+      const response = await fetch(`${API_BASE_URL}/getVideoInfo?videoId=${videoId}`);
+      const html = await response.text();
+
+      // HTML içeriğinden kanal adını çıkar
+      const titleMatch = html.match(/<a[^>]*class="[^"]*ytp-title-link[^"]*"[^>]*>([^<]+)<\/a>/);
+      if (titleMatch && titleMatch[1]) {
+        return titleMatch[1].trim();
+      }
+
+      // Eğer başlık bulunamazsa URL'den çıkarmayı dene
       const urlObj = new URL(url);
       const pathSegments = urlObj.pathname.split('/').filter(Boolean);
       if (urlObj.hostname === 'www.youtube.com' || urlObj.hostname === 'youtube.com') {
-        // Handle different YouTube URL formats
         if (pathSegments[0] === 'channel' || pathSegments[0] === 'c' || pathSegments[0] === 'user') {
           return pathSegments[1] || 'Unknown Channel';
         }
-        if (pathSegments[0] === 'watch') {
-          return urlObj.searchParams.get('channel') || 'Unknown Channel';
-        }
       }
-      return pathSegments[pathSegments.length - 1] || 'Unknown Channel';
+      return 'Unknown Channel';
     } catch (error) {
       console.error('Error extracting channel name:', error);
       return 'Unknown Channel';
@@ -57,7 +68,7 @@ const App: React.FC = () => {
     if (!url) return;
 
     try {
-      const channelName = extractChannelName(url);
+      const channelName = await extractChannelName(url);
       const response = await fetch(`${API_BASE_URL}/addVideo`, {
         method: 'POST',
         headers: {
