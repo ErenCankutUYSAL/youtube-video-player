@@ -12,7 +12,6 @@ function App() {
   const [currentVideo, setCurrentVideo] = useState<Video | null>(null);
   const [loading, setLoading] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
-  const [recordingError, setRecordingError] = useState<string | null>(null);
 
   // Load channel list
   const loadChannelList = async () => {
@@ -56,27 +55,20 @@ function App() {
     if (!currentVideo) return;
 
     try {
-      setRecordingError(null);
-      
       if (!isRecording) {
-        // Start recording
-        const response = await axios.post('http://localhost:3001/startRecording', {
+        await axios.post('http://localhost:3001/startRecording', {
           url: currentVideo.url
         });
-        console.log('Recording started:', response.data);
         setIsRecording(true);
       } else {
-        // Stop recording
-        const response = await axios.post('http://localhost:3001/stopRecording', {
+        await axios.post('http://localhost:3001/stopRecording', {
           url: currentVideo.url
         });
-        console.log('Recording stopped:', response.data);
         setIsRecording(false);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error toggling recording:', error);
-      setRecordingError(error.response?.data?.error || 'Failed to toggle recording');
-      setIsRecording(false);
+      alert('Failed to toggle recording. Please try again.');
     }
   };
 
@@ -131,12 +123,6 @@ function App() {
           title="Import videos from text file"
         />
       </div>
-
-      {recordingError && (
-        <div className="error-message">
-          {recordingError}
-        </div>
-      )}
 
       <div className="list-container">
         {loading ? (
