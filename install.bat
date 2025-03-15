@@ -1,6 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
 
+:: Scriptin bulunduğu dizine geç
+cd /d "%~dp0"
+
 echo [92mYouTube Video Player Kurulum Scripti[0m
 echo ======================================
 
@@ -22,6 +25,8 @@ if %errorLevel% == 1 (
     @powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))"
     if !errorLevel! == 0 (
         echo [92mChocolatey başarıyla kuruldu[0m
+        :: Yeni PATH'i almak için ortam değişkenlerini yenile
+        refreshenv
     ) else (
         echo [91mChocolatey kurulumu başarısız[0m
         pause
@@ -36,6 +41,8 @@ if %errorLevel% == 1 (
     choco install nodejs -y
     if !errorLevel! == 0 (
         echo [92mNode.js başarıyla kuruldu[0m
+        :: Yeni PATH'i almak için ortam değişkenlerini yenile
+        refreshenv
     ) else (
         echo [91mNode.js kurulumu başarısız[0m
         pause
@@ -61,13 +68,22 @@ if %errorLevel% == 1 (
 for /f "tokens=*" %%i in ('node -v') do set NODE_VERSION=%%i
 echo [92mNode.js sürümü: %NODE_VERSION%[0m
 
+:: package.json kontrolü
+if not exist "package.json" (
+    echo [91mHata: package.json dosyası bulunamadı![0m
+    echo Lütfen scripti projenin ana dizininde çalıştırın.
+    pause
+    exit /b 1
+)
+
 :: npm paketlerinin kurulumu
 echo [93mnpm paketleri kuruluyor...[0m
-call npm install
+call npm install --no-audit
 if %errorLevel% == 0 (
     echo [92mnpm paketleri başarıyla kuruldu[0m
 ) else (
     echo [91mnpm paketleri kurulumu başarısız[0m
+    echo Hata detayları için npm-debug.log dosyasını kontrol edin
     pause
     exit /b 1
 )
