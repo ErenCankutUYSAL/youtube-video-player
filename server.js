@@ -11,7 +11,7 @@ app.use(express.json());
 const PORT = 3001;
 const LIST_FILE = 'list.txt';
 
-// Yardımcı fonksiyon: YouTube video ID'sini URL'den çıkarır
+// YouTube video ID'sini URL'den çıkarır
 function getVideoId(url) {
   const match = url.match(/[?&]v=([^&]+)/);
   return match ? match[1] : null;
@@ -26,12 +26,11 @@ app.get('/getList', async (req, res) => {
         const [url, channelName] = line.split('|').map(s => s.trim());
         return { url, channelName };
       })
-      .filter(video => video.url && getVideoId(video.url)); // Sadece geçerli YouTube URL'lerini filtrele
+      .filter(video => video.url && getVideoId(video.url));
 
     res.json(lines);
   } catch (error) {
     if (error.code === 'ENOENT') {
-      // Dosya yoksa boş liste döndür
       await fs.writeFile(LIST_FILE, '', 'utf8');
       res.json([]);
     } else {
@@ -41,15 +40,58 @@ app.get('/getList', async (req, res) => {
   }
 });
 
+async function getChannelName(url) {
+  try {
+    const response = await axios.get(url);
+    const $ = cheerio.load(response.data);
+    
+    // Farklı yöntemlerle kanal adını bulmaya çalış
+    let channelName = '';
+    
+    // 1. Video başlığından kanal adını al
+    const title = $('title').text();
+    if (title) {
+      const titleParts = title.split('-');
+      if (titleParts.length > 1) {
+        channelName = titleParts[0].trim();
+      }
+    }
+    
+    // 2. Meta verilerinden kanal adını al
+    if (!channelName) {
+      channelName = $('meta[itemprop="channelName"]').attr('content') ||
+                   $('meta[property="og:site_name"]').attr('content');
+    }
+    
+    // 3. Kanal linki üzerinden al
+    if (!channelName) {
+      channelName = $('#owner-name a').text() ||
+                   $('.ytd-channel-name').text();
+    }
+    
+    // 4. Video açıklamasından al
+    if (!channelName) {
+      const description = $('meta[name="description"]').attr('content');
+      if (description) {
+        const descParts = description.split('|');
+        if (descParts.length > 0) {
+          channelName = descParts[0].trim();
+        }
+      }
+    }
+
+    return channelName || 'YouTube Channel';
+  } catch (error) {
+    console.error('Error fetching channel name:', error);
+    return 'YouTube Channel';
+  }
+}
+
 app.get('/getVideoInfo', async (req, res) => {
   const { url } = req.query;
   
   try {
-    const response = await axios.get(url);
-    const $ = cheerio.load(response.data);
-    const channelName = $('meta[itemprop="channelName"]').attr('content') || 
-                       $('#owner-name a').text() ||
-                       'Unknown Channel';
+    const channelName = await getChannelName(url);
     res.json({ channelName });
   } catch (error) {
     console.error('Error fetching video info:', error);
@@ -85,8 +127,7 @@ app.post('/addVideo', async (req, res) => {
     }
 
     // Kanal adını al
-    const videoInfo = await axios.get(`http://localhost:${PORT}/getVideoInfo?url=${encodeURIComponent(url)}`);
-    const channelName = videoInfo.data.channelName;
+    const channelName = await getChannelName(url);
 
     // Yeni videoyu ekle
     const newLine = `${url} | ${channelName}`;
