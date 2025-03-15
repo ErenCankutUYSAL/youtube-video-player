@@ -7,19 +7,10 @@ interface Video {
   channelName: string;
 }
 
-interface RecordingSchedule {
-  hour: number;
-  enabled: boolean;
-}
-
 const App: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [currentVideo, setCurrentVideo] = useState<Video | null>(null);
   const [loading, setLoading] = useState(true);
-  const [recordingSchedule, setRecordingSchedule] = useState<RecordingSchedule[]>(
-    Array.from({ length: 24 }, (_, i) => ({ hour: i, enabled: false }))
-  );
-  const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
     loadChannelList();
@@ -63,7 +54,7 @@ const App: React.FC = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.txt';
-    
+
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
@@ -71,7 +62,7 @@ const App: React.FC = () => {
       const reader = new FileReader();
       reader.onload = async (e) => {
         const text = e.target?.result as string;
-        const urls = text.split('\n').filter(url => url.trim());
+        const urls = text.split('\n').filter((url) => url.trim());
 
         try {
           await axios.post('http://localhost:3001/bulkImport', { urls });
@@ -86,46 +77,6 @@ const App: React.FC = () => {
     };
 
     input.click();
-  };
-
-  const toggleRecording = async () => {
-    if (!currentVideo) return;
-
-    try {
-      if (isRecording) {
-        await axios.post('http://localhost:3001/stopRecording');
-        setIsRecording(false);
-      } else {
-        const selectedHours = recordingSchedule
-          .filter(schedule => schedule.enabled)
-          .map(schedule => schedule.hour);
-
-        if (selectedHours.length === 0) {
-          alert('Please select at least one hour to record');
-          return;
-        }
-
-        await axios.post('http://localhost:3001/startRecording', {
-          videoUrl: currentVideo.url,
-          channelName: currentVideo.channelName,
-          schedule: selectedHours
-        });
-        setIsRecording(true);
-      }
-    } catch (error) {
-      console.error('Error toggling recording:', error);
-      alert('Failed to toggle recording. Please try again.');
-    }
-  };
-
-  const toggleHour = (hour: number) => {
-    setRecordingSchedule(prev =>
-      prev.map(schedule =>
-        schedule.hour === hour
-          ? { ...schedule, enabled: !schedule.enabled }
-          : schedule
-      )
-    );
   };
 
   const renderVideoPlayer = () => {
@@ -169,7 +120,9 @@ const App: React.FC = () => {
             videos.map((video, index) => (
               <div
                 key={index}
-                className={`channel-item ${currentVideo?.url === video.url ? 'active' : ''}`}
+                className={`channel-item ${
+                  currentVideo?.url === video.url ? 'active' : ''
+                }`}
                 onClick={() => setCurrentVideo(video)}
               >
                 {video.channelName}
@@ -177,29 +130,6 @@ const App: React.FC = () => {
             ))
           )}
         </div>
-        {currentVideo && (
-          <div className="recording-section">
-            <h3>Recording Schedule</h3>
-            <div className="hour-grid">
-              {recordingSchedule.map(({ hour, enabled }) => (
-                <label key={hour} className="hour-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={enabled}
-                    onChange={() => toggleHour(hour)}
-                  />
-                  {hour.toString().padStart(2, '0')}:00
-                </label>
-              ))}
-            </div>
-            <button
-              className={`record-button ${isRecording ? 'recording' : ''}`}
-              onClick={toggleRecording}
-            >
-              {isRecording ? 'Stop Recording' : 'Start Recording'}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
