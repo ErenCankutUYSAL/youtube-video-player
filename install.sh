@@ -6,6 +6,36 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# Function to verify FFmpeg installation
+verify_ffmpeg() {
+    if command -v ffmpeg >/dev/null 2>&1; then
+        # Test FFmpeg functionality
+        ffmpeg -f lavfi -i color=c=black:s=100x100:d=1 -c:v libx264 test_output.mp4 >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            rm test_output.mp4
+            echo -e "${GREEN}FFmpeg is working correctly${NC}"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Function to install FFmpeg on Debian/Ubuntu
+install_ffmpeg_debian() {
+    apt-get update
+    apt-get install -y software-properties-common
+    add-apt-repository -y ppa:savoury1/ffmpeg4
+    apt-get update
+    apt-get install -y ffmpeg
+}
+
+# Function to install FFmpeg on RHEL/CentOS
+install_ffmpeg_rhel() {
+    yum install -y epel-release
+    yum localinstall -y --nogpgcheck https://download1.rpmfusion.org/free/el/rpmfusion-free-release-7.noarch.rpm
+    yum install -y ffmpeg ffmpeg-devel
+}
+
 echo -e "${GREEN}YouTube Video Player Installation Script${NC}"
 echo "======================================"
 
@@ -19,11 +49,13 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         PKG_MANAGER="apt-get"
         PKG_UPDATE="apt-get update"
         INSTALL_CMD="apt-get install -y"
+        FFMPEG_INSTALL_FUNC=install_ffmpeg_debian
     elif command -v yum &> /dev/null; then
         echo "Red Hat/CentOS-based system detected"
         PKG_MANAGER="yum"
         PKG_UPDATE="yum update"
         INSTALL_CMD="yum install -y"
+        FFMPEG_INSTALL_FUNC=install_ffmpeg_rhel
     else
         echo -e "${RED}Unsupported Linux distribution${NC}"
         exit 1
@@ -43,7 +75,32 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     # Install required packages
     echo -e "${YELLOW}Installing required packages...${NC}"
     $INSTALL_CMD curl
-    $INSTALL_CMD ffmpeg
+
+    # FFmpeg installation and verification
+    echo -e "${YELLOW}Checking FFmpeg installation...${NC}"
+    if ! verify_ffmpeg; then
+        echo -e "${YELLOW}Installing/Reinstalling FFmpeg...${NC}"
+        # Remove existing FFmpeg if any
+        if command -v ffmpeg >/dev/null 2>&1; then
+            if [ "$PKG_MANAGER" = "apt-get" ]; then
+                apt-get remove -y ffmpeg
+                apt-get autoremove -y
+            else
+                yum remove -y ffmpeg
+            fi
+        fi
+        
+        # Install FFmpeg using distribution-specific method
+        $FFMPEG_INSTALL_FUNC
+        
+        # Verify installation
+        if verify_ffmpeg; then
+            echo -e "${GREEN}FFmpeg installed and verified successfully${NC}"
+        else
+            echo -e "${RED}FFmpeg installation or verification failed${NC}"
+            exit 1
+        fi
+    fi
     
     # Node.js installation
     if ! command -v node &> /dev/null; then
@@ -61,10 +118,26 @@ elif [[ "$OSTYPE" == "darwin"* ]]; then
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     fi
 
-    # Install required packages
-    echo -e "${YELLOW}Installing required packages...${NC}"
-    brew install ffmpeg
-    brew install node
+    # FFmpeg installation and verification
+    echo -e "${YELLOW}Checking FFmpeg installation...${NC}"
+    if ! verify_ffmpeg; then
+        echo -e "${YELLOW}Installing/Reinstalling FFmpeg...${NC}"
+        brew remove ffmpeg >/dev/null 2>&1
+        brew install ffmpeg
+        
+        if verify_ffmpeg; then
+            echo -e "${GREEN}FFmpeg installed and verified successfully${NC}"
+        else
+            echo -e "${RED}FFmpeg installation or verification failed${NC}"
+            exit 1
+        fi
+    fi
+
+    # Install Node.js
+    if ! command -v node &> /dev/null; then
+        echo -e "${YELLOW}Installing Node.js...${NC}"
+        brew install node
+    fi
 
 else
     echo -e "${RED}Unsupported operating system${NC}"
@@ -98,6 +171,14 @@ mkdir -p recordings
 
 echo -e "${GREEN}Installation completed successfully!${NC}"
 echo "======================================"
+
+# Final FFmpeg verification
+echo -e "${YELLOW}Performing final FFmpeg verification...${NC}"
+if ! verify_ffmpeg; then
+    echo -e "${RED}Warning: FFmpeg might not be working correctly${NC}"
+    echo "Please try restarting your system"
+    exit 1
+fi
 
 # Ask to start the application
 read -p "Would you like to start the application now? (y/N) " -n 1 -r
