@@ -5,7 +5,6 @@ const cors = require('cors');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { spawn } = require('child_process');
-const ffmpeg = require('fluent-ffmpeg');
 
 const app = express();
 const port = 3001;
@@ -19,15 +18,6 @@ const activeRecordings = new Map();
 // Ensure recordings directory exists
 const recordingsDir = path.join(__dirname, 'recordings');
 fs.mkdir(recordingsDir, { recursive: true }).catch(console.error);
-
-// Helper function to check if ffmpeg is installed
-async function checkFFmpeg() {
-    return new Promise((resolve) => {
-        ffmpeg.getAvailableCodecs((err, codecs) => {
-            resolve(!err && codecs);
-        });
-    });
-}
 
 // Helper function to get video ID from URL
 function getVideoId(url) {
@@ -103,44 +93,18 @@ app.post('/startRecording', async (req, res) => {
             return res.status(400).json({ error: 'URL is required' });
         }
 
-        // Check if FFmpeg is available
-        const ffmpegAvailable = await checkFFmpeg();
-        if (!ffmpegAvailable) {
-            return res.status(500).json({ error: 'FFmpeg is not available' });
-        }
-
-        // Check if already recording
-        if (activeRecordings.has(url)) {
-            return res.status(400).json({ error: 'Already recording this URL' });
-        }
-
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const outputPath = path.join(recordingsDir, `recording-${timestamp}.mp4`);
 
-        const ffmpegProcess = ffmpeg(url)
-            .outputOptions([
-                '-c:v libx264',
-                '-c:a aac',
-                '-b:a 128k',
-                '-strict experimental'
-            ])
-            .output(outputPath)
-            .on('start', () => {
-                console.log('Recording started:', url);
-            })
-            .on('error', (err) => {
-                console.error('Recording error:', err);
-                activeRecordings.delete(url);
-            })
-            .on('end', () => {
-                console.log('Recording finished:', url);
-                activeRecordings.delete(url);
-            });
+        const ffmpeg = spawn('ffmpeg', [
+            '-i', url,
+            '-c:v', 'copy',
+            '-c:a', 'copy',
+            outputPath
+        ]);
 
-        ffmpegProcess.run();
-        activeRecordings.set(url, { process: ffmpegProcess, outputPath });
-
-        res.json({ message: 'Recording started', outputPath });
+        activeRecordings.set(url, ffmpeg);
+        res.json({ message: 'Recording started' });
     } catch (error) {
         console.error('Error starting recording:', error);
         res.status(500).json({ error: 'Failed to start recording' });
@@ -155,15 +119,14 @@ app.post('/stopRecording', async (req, res) => {
             return res.status(400).json({ error: 'URL is required' });
         }
 
-        const recording = activeRecordings.get(url);
-        if (!recording) {
-            return res.status(400).json({ error: 'No active recording found for this URL' });
+        const ffmpeg = activeRecordings.get(url);
+        if (ffmpeg) {
+            ffmpeg.kill('SIGINT');
+            activeRecordings.delete(url);
+            res.json({ message: 'Recording stopped' });
+        } else {
+            res.status(400).json({ error: 'No active recording found' });
         }
-
-        recording.process.kill();
-        activeRecordings.delete(url);
-
-        res.json({ message: 'Recording stopped', outputPath: recording.outputPath });
     } catch (error) {
         console.error('Error stopping recording:', error);
         res.status(500).json({ error: 'Failed to stop recording' });
@@ -197,26 +160,6 @@ app.post('/bulkImport', async (req, res) => {
     }
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-    console.error('Server error:', err);
-    res.status(500).json({ error: 'Internal server error', details: err.message });
-});
-
-// Start server
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
-});
-
-// Cleanup on server shutdown
-process.on('SIGINT', () => {
-    console.log('Shutting down server...');
-    activeRecordings.forEach((recording) => {
-        try {
-            recording.process.kill();
-        } catch (error) {
-            console.error('Error killing recording process:', error);
-        }
-    });
-    process.exit(0);
 });
