@@ -7,166 +7,143 @@ interface Video {
   channelName: string;
 }
 
-interface RecordingSchedule {
-  hour: number;
-  enabled: boolean;
-}
-
-const App: React.FC = () => {
+function App() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [currentVideo, setCurrentVideo] = useState<Video | null>(null);
   const [loading, setLoading] = useState(true);
-  const [recordingSchedule, setRecordingSchedule] = useState<RecordingSchedule[]>(
-    Array.from({ length: 24 }, (_, i) => ({ hour: i, enabled: false }))
-  );
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadChannelList();
-    const interval = setInterval(loadChannelList, 300000); // 5 minutes
-    return () => clearInterval(interval);
-  }, []);
-
+  // Load channel list
   const loadChannelList = async () => {
     try {
+      setLoading(true);
       const response = await axios.get('http://localhost:3001/getList');
       setVideos(response.data);
       if (!currentVideo && response.data.length > 0) {
         setCurrentVideo(response.data[0]);
       }
-      setLoading(false);
     } catch (error) {
       console.error('Error loading channel list:', error);
+    } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    loadChannelList();
+    // Refresh list every 5 minutes
+    const interval = setInterval(loadChannelList, 300000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Add new video
   const addVideo = async () => {
     const url = prompt('Enter YouTube video URL:');
     if (!url) return;
 
-    if (!url.includes('youtube.com')) {
-      alert('Please enter a valid YouTube URL');
-      return;
-    }
-
     try {
       await axios.post('http://localhost:3001/addVideo', { url });
-      loadChannelList();
+      await loadChannelList();
     } catch (error) {
       console.error('Error adding video:', error);
       alert('Failed to add video. Please try again.');
     }
   };
 
-  const bulkImport = async () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.txt';
-    
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const text = e.target?.result as string;
-        const urls = text.split('\n').filter(url => url.trim());
-
-        try {
-          await axios.post('http://localhost:3001/bulkImport', { urls });
-          loadChannelList();
-          alert('Channels imported successfully!');
-        } catch (error) {
-          console.error('Error importing channels:', error);
-          alert('Failed to import channels. Please try again.');
-        }
-      };
-      reader.readAsText(file);
-    };
-
-    input.click();
-  };
-
+  // Toggle recording
   const toggleRecording = async () => {
     if (!currentVideo) return;
 
     try {
-      if (isRecording) {
-        await axios.post('http://localhost:3001/stopRecording');
-        setIsRecording(false);
-      } else {
-        const selectedHours = recordingSchedule
-          .filter(schedule => schedule.enabled)
-          .map(schedule => schedule.hour);
-
-        if (selectedHours.length === 0) {
-          alert('Please select at least one hour to record');
-          return;
-        }
-
-        await axios.post('http://localhost:3001/startRecording', {
-          videoUrl: currentVideo.url,
-          channelName: currentVideo.channelName,
-          schedule: selectedHours
+      setRecordingError(null);
+      
+      if (!isRecording) {
+        // Start recording
+        const response = await axios.post('http://localhost:3001/startRecording', {
+          url: currentVideo.url
         });
+        console.log('Recording started:', response.data);
         setIsRecording(true);
+      } else {
+        // Stop recording
+        const response = await axios.post('http://localhost:3001/stopRecording', {
+          url: currentVideo.url
+        });
+        console.log('Recording stopped:', response.data);
+        setIsRecording(false);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error toggling recording:', error);
-      alert('Failed to toggle recording. Please try again.');
+      setRecordingError(error.response?.data?.error || 'Failed to toggle recording');
+      setIsRecording(false);
     }
   };
 
-  const toggleHour = (hour: number) => {
-    setRecordingSchedule(prev =>
-      prev.map(schedule =>
-        schedule.hour === hour
-          ? { ...schedule, enabled: !schedule.enabled }
-          : schedule
-      )
-    );
-  };
+  // Bulk import videos
+  const handleBulkImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-  const renderVideoPlayer = () => {
-    if (!currentVideo) {
-      return <div className="no-video">No video selected</div>;
+    try {
+      const text = await file.text();
+      const urls = text.split('\n').filter(url => url.trim());
+      
+      await axios.post('http://localhost:3001/bulkImport', { urls });
+      await loadChannelList();
+      
+      event.target.value = ''; // Reset file input
+    } catch (error) {
+      console.error('Error importing videos:', error);
+      alert('Failed to import videos. Please try again.');
     }
-
-    const videoId = currentVideo.url.split('v=')[1];
-    return (
-      <iframe
-        src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-      />
-    );
   };
 
   return (
     <div className="container">
       <div className="video-container">
-        {renderVideoPlayer()}
+        {currentVideo && (
+          <iframe
+            src={`${currentVideo.url}?autoplay=1`}
+            allow="autoplay; fullscreen"
+            allowFullScreen
+            title="Video Player"
+          />
+        )}
       </div>
-      <div className="list-container">
-        <div className="header">
-          <h2>YouTube Channels</h2>
-          <div className="button-group">
-            <button className="add-button" onClick={addVideo}>
-              Add Channel
-            </button>
-            <button className="import-button" onClick={bulkImport}>
-              Import Channels
-            </button>
-          </div>
+
+      <div className="controls">
+        <button onClick={addVideo} className="control-button">
+          Add Video
+        </button>
+        <button
+          onClick={toggleRecording}
+          className={`control-button ${isRecording ? 'recording' : ''}`}
+          disabled={!currentVideo}
+        >
+          {isRecording ? 'Stop Recording' : 'Start Recording'}
+        </button>
+        <input
+          type="file"
+          accept=".txt"
+          onChange={handleBulkImport}
+          className="file-input"
+          title="Import videos from text file"
+        />
+      </div>
+
+      {recordingError && (
+        <div className="error-message">
+          {recordingError}
         </div>
-        <div className="channel-list">
-          {loading ? (
-            <div className="loading">Loading channels...</div>
-          ) : videos.length === 0 ? (
-            <div className="no-channels">No channels added yet</div>
-          ) : (
-            videos.map((video, index) => (
+      )}
+
+      <div className="list-container">
+        {loading ? (
+          <div className="loading">Loading channels...</div>
+        ) : (
+          <div className="channel-list">
+            {videos.map((video, index) => (
               <div
                 key={index}
                 className={`channel-item ${currentVideo?.url === video.url ? 'active' : ''}`}
@@ -174,35 +151,12 @@ const App: React.FC = () => {
               >
                 {video.channelName}
               </div>
-            ))
-          )}
-        </div>
-        {currentVideo && (
-          <div className="recording-section">
-            <h3>Recording Schedule</h3>
-            <div className="hour-grid">
-              {recordingSchedule.map(({ hour, enabled }) => (
-                <label key={hour} className="hour-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={enabled}
-                    onChange={() => toggleHour(hour)}
-                  />
-                  {hour.toString().padStart(2, '0')}:00
-                </label>
-              ))}
-            </div>
-            <button
-              className={`record-button ${isRecording ? 'recording' : ''}`}
-              onClick={toggleRecording}
-            >
-              {isRecording ? 'Stop Recording' : 'Start Recording'}
-            </button>
+            ))}
           </div>
         )}
       </div>
     </div>
   );
-};
+}
 
 export default App;
