@@ -11,17 +11,28 @@ app.use(express.json());
 const PORT = 3001;
 const LIST_FILE = 'list.txt';
 
+// Yardımcı fonksiyon: YouTube video ID'sini URL'den çıkarır
+function getVideoId(url) {
+  const match = url.match(/[?&]v=([^&]+)/);
+  return match ? match[1] : null;
+}
+
 app.get('/getList', async (req, res) => {
   try {
     const data = await fs.readFile(LIST_FILE, 'utf8');
-    const lines = data.split('\n').filter(line => line.trim());
-    const videos = lines.map(line => {
-      const [url, channelName] = line.split('|').map(s => s.trim());
-      return { url, channelName: channelName || 'Unknown Channel' };
-    });
-    res.json(videos);
+    const lines = data.split('\n')
+      .filter(line => line.trim())
+      .map(line => {
+        const [url, channelName] = line.split('|').map(s => s.trim());
+        return { url, channelName };
+      })
+      .filter(video => video.url && getVideoId(video.url)); // Sadece geçerli YouTube URL'lerini filtrele
+
+    res.json(lines);
   } catch (error) {
     if (error.code === 'ENOENT') {
+      // Dosya yoksa boş liste döndür
+      await fs.writeFile(LIST_FILE, '', 'utf8');
       res.json([]);
     } else {
       console.error('Error reading list:', error);
@@ -52,12 +63,13 @@ app.post('/addVideo', async (req, res) => {
     return res.status(400).json({ error: 'URL is required' });
   }
 
-  if (!url.includes('youtube.com')) {
-    return res.status(400).json({ error: 'Only YouTube URLs are allowed' });
+  const videoId = getVideoId(url);
+  if (!videoId) {
+    return res.status(400).json({ error: 'Invalid YouTube URL' });
   }
 
   try {
-    // Read existing list
+    // Mevcut listeyi oku
     let data = '';
     try {
       data = await fs.readFile(LIST_FILE, 'utf8');
@@ -67,20 +79,20 @@ app.post('/addVideo', async (req, res) => {
 
     const lines = data.split('\n').filter(line => line.trim());
     
-    // Check for duplicates
-    if (lines.some(line => line.split('|')[0].trim() === url)) {
-      return res.status(400).json({ error: 'URL already exists in the list' });
+    // URL zaten var mı kontrol et
+    if (lines.some(line => line.includes(url))) {
+      return res.status(400).json({ error: 'Video already exists in the list' });
     }
 
-    // Get channel name
+    // Kanal adını al
     const videoInfo = await axios.get(`http://localhost:${PORT}/getVideoInfo?url=${encodeURIComponent(url)}`);
     const channelName = videoInfo.data.channelName;
 
-    // Add new video
+    // Yeni videoyu ekle
     const newLine = `${url} | ${channelName}`;
     lines.push(newLine);
 
-    // Save updated list
+    // Listeyi kaydet
     await fs.writeFile(LIST_FILE, lines.join('\n') + '\n');
     res.json({ message: 'Video added successfully' });
   } catch (error) {
