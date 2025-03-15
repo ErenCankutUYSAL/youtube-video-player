@@ -1,12 +1,12 @@
+// server.js (kısa örnek)
+
 const express = require('express');
 const fs = require('fs').promises;
 const cors = require('cors');
+const path = require('path');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const ytdl = require('ytdl-core');
-const schedule = require('node-schedule');
-const path = require('path');
-const ffmpeg = require('fluent-ffmpeg');
+// const schedule = require('node-schedule'); // <-- Artık kullanılmayacaksa yoruma alın
 
 const app = express();
 app.use(cors());
@@ -14,81 +14,25 @@ app.use(express.json());
 
 const PORT = 3001;
 const LIST_FILE = 'list.txt';
-const RECORDINGS_DIR = 'recordings';
 
-// Kayıt işlemlerini takip etmek için
-let activeRecordings = new Map();
+// Bu tür fonksiyonlar varsa devre dışı bırakın veya silin:
+// app.post('/startRecording', ...){ ... }
+// app.post('/stopRecording', ...){ ... }
 
-// Kayıt dizinini oluştur
-(async () => {
-  try {
-    await fs.access(RECORDINGS_DIR);
-  } catch {
-    await fs.mkdir(RECORDINGS_DIR);
-  }
-})();
+// Kayıt için planlamayı iptal etmek istiyorsanız schedule ile ilgili kodu pasifleştirin
 
-function getVideoId(url) {
-  const match = url.match(/[?&]v=([^&]+)/);
-  return match ? match[1] : null;
-}
-
-async function getChannelName(url) {
-  try {
-    const response = await axios.get(url);
-    const $ = cheerio.load(response.data);
-    
-    let channelName = '';
-    
-    // 1. Video başlığından kanal adını al
-    const title = $('title').text();
-    if (title) {
-      const titleParts = title.split('-');
-      if (titleParts.length > 1) {
-        channelName = titleParts[0].trim();
-      }
-    }
-    
-    // 2. Meta verilerinden kanal adını al
-    if (!channelName) {
-      channelName = $('meta[itemprop="channelName"]').attr('content') ||
-                   $('meta[property="og:site_name"]').attr('content');
-    }
-    
-    // 3. Kanal linki üzerinden al
-    if (!channelName) {
-      channelName = $('#owner-name a').text() ||
-                   $('.ytd-channel-name').text();
-    }
-    
-    // 4. Video açıklamasından al
-    if (!channelName) {
-      const description = $('meta[name="description"]').attr('content');
-      if (description) {
-        const descParts = description.split('|');
-        if (descParts.length > 0) {
-          channelName = descParts[0].trim();
-        }
-      }
-    }
-
-    return channelName || 'YouTube Channel';
-  } catch (error) {
-    console.error('Error fetching channel name:', error);
-    return 'YouTube Channel';
-  }
-}
-
+// Kanalları listeden çekmek için GET /getList:
 app.get('/getList', async (req, res) => {
   try {
     const data = await fs.readFile(LIST_FILE, 'utf8');
-    const lines = data.split('\n')
+    const lines = data
+      .split('\n')
       .filter(line => line.trim())
       .map(line => {
+        // "URL | KanalAdı" formatı
         const [url, channelName] = line.split('|').map(s => s.trim());
         return { url, channelName };
-      })
-      .filter(video => video.url && getVideoId(video.url));
+      });
 
     res.json(lines);
   } catch (error) {
@@ -102,6 +46,7 @@ app.get('/getList', async (req, res) => {
   }
 });
 
+// Yeni kanal(lar) eklemek için POST /bulkImport
 app.post('/bulkImport', async (req, res) => {
   const { urls } = req.body;
   if (!urls || !Array.isArray(urls)) {
@@ -119,136 +64,28 @@ app.post('/bulkImport', async (req, res) => {
     const existingLines = data.split('\n').filter(line => line.trim());
     const existingUrls = new Set(existingLines.map(line => line.split('|')[0].trim()));
 
-    const newVideos = [];
+    let addedCount = 0;
     for (const url of urls) {
       if (!url.includes('youtube.com')) continue;
       if (existingUrls.has(url)) continue;
 
-      const channelName = await getChannelName(url);
-      newVideos.push(`${url} | ${channelName}`);
+      // Not: İsterseniz "kanal adı" elle ya da parse ederek bulabilirsiniz.
+      // Burada "varsayılan" diyoruz.
+      const channelName = 'Yeni Kanal';
+      existingLines.push(`${url} | ${channelName}`);
+      existingUrls.add(url);
+      addedCount++;
     }
 
-    if (newVideos.length > 0) {
-      const allLines = [...existingLines, ...newVideos];
-      await fs.writeFile(LIST_FILE, allLines.join('\n') + '\n');
-    }
-
-    res.json({ message: `Added ${newVideos.length} new videos` });
+    await fs.writeFile(LIST_FILE, existingLines.join('\n') + '\n', 'utf8');
+    res.json({ message: `Added ${addedCount} new videos` });
   } catch (error) {
     console.error('Error importing videos:', error);
     res.status(500).json({ error: 'Failed to import videos' });
   }
 });
 
-app.post('/startRecording', async (req, res) => {
-  const { videoUrl, channelName, schedule: recordingHours } = req.body;
-
-  if (!videoUrl || !channelName || !recordingHours) {
-    return res.status(400).json({ error: 'Missing required parameters' });
-  }
-
-  try {
-    const videoId = getVideoId(videoUrl);
-    if (!videoId) {
-      return res.status(400).json({ error: 'Invalid YouTube URL' });
-    }
-
-    // Önceki kayıtları iptal et
-    if (activeRecordings.has(videoUrl)) {
-      activeRecordings.get(videoUrl).forEach(job => job.cancel());
-    }
-
-    // Her saat için yeni kayıt planla
-    const jobs = recordingHours.map(hour => {
-      return schedule.scheduleJob(`0 ${hour} * * *`, async () => {
-        const date = new Date();
-        const fileName = `${channelName}_${date.getFullYear()}_${(date.getMonth() + 1).toString().padStart(2, '0')}_${date.getDate().toString().padStart(2, '0')}_${hour.toString().padStart(2, '0')}.mp4`;
-        const filePath = path.join(RECORDINGS_DIR, fileName);
-
-        try {
-          const videoStream = ytdl(videoUrl, { quality: 'highest' });
-          
-          ffmpeg(videoStream)
-            .duration(3600) // 1 saat
-            .toFormat('mp4')
-            .on('end', () => {
-              console.log(`Recording completed: ${fileName}`);
-            })
-            .on('error', (err) => {
-              console.error(`Recording error: ${fileName}`, err);
-            })
-            .save(filePath);
-        } catch (error) {
-          console.error(`Failed to record: ${fileName}`, error);
-        }
-      });
-    });
-
-    activeRecordings.set(videoUrl, jobs);
-    res.json({ message: 'Recording scheduled successfully' });
-  } catch (error) {
-    console.error('Error starting recording:', error);
-    res.status(500).json({ error: 'Failed to start recording' });
-  }
-});
-
-app.post('/stopRecording', async (req, res) => {
-  const { videoUrl } = req.body;
-
-  if (!videoUrl) {
-    return res.status(400).json({ error: 'Video URL is required' });
-  }
-
-  try {
-    if (activeRecordings.has(videoUrl)) {
-      activeRecordings.get(videoUrl).forEach(job => job.cancel());
-      activeRecordings.delete(videoUrl);
-    }
-
-    res.json({ message: 'Recording stopped successfully' });
-  } catch (error) {
-    console.error('Error stopping recording:', error);
-    res.status(500).json({ error: 'Failed to stop recording' });
-  }
-});
-
-app.post('/addVideo', async (req, res) => {
-  const { url } = req.body;
-  if (!url) {
-    return res.status(400).json({ error: 'URL is required' });
-  }
-
-  const videoId = getVideoId(url);
-  if (!videoId) {
-    return res.status(400).json({ error: 'Invalid YouTube URL' });
-  }
-
-  try {
-    let data = '';
-    try {
-      data = await fs.readFile(LIST_FILE, 'utf8');
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
-    }
-
-    const lines = data.split('\n').filter(line => line.trim());
-    
-    if (lines.some(line => line.includes(url))) {
-      return res.status(400).json({ error: 'Video already exists in the list' });
-    }
-
-    const channelName = await getChannelName(url);
-    const newLine = `${url} | ${channelName}`;
-    lines.push(newLine);
-
-    await fs.writeFile(LIST_FILE, lines.join('\n') + '\n');
-    res.json({ message: 'Video added successfully' });
-  } catch (error) {
-    console.error('Error adding video:', error);
-    res.status(500).json({ error: 'Failed to add video' });
-  }
-});
-
+// Sunucuyu dinlemeye al
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
