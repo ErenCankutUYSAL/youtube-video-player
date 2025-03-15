@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 interface Video {
   url: string;
   channelName: string;
+  type: 'youtube' | 'custom';
 }
 
 const API_BASE_URL = 'http://localhost:3001';
@@ -10,28 +11,40 @@ const API_BASE_URL = 'http://localhost:3001';
 const App: React.FC = () => {
   const [videos, setVideos] = useState<Video[]>([]);
   const [currentVideo, setCurrentVideo] = useState<string | null>(null);
+  const [currentType, setCurrentType] = useState<'youtube' | 'custom'>('youtube');
   const [loading, setLoading] = useState(false);
 
   const loadChannelList = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`${API_BASE_URL}/getList`);
-      const urls = await response.json();
+      const data = await response.json();
       
       const videoList = await Promise.all(
-        urls.map(async (url: string) => {
+        data.map(async (item: { url: string; type: 'youtube' | 'custom' }) => {
           try {
-            const infoResponse = await fetch(`${API_BASE_URL}/getVideoInfo?url=${encodeURIComponent(url)}`);
-            const info = await infoResponse.json();
-            return {
-              url,
-              channelName: info.channelName || 'Unknown Channel'
-            };
+            if (item.type === 'youtube') {
+              const infoResponse = await fetch(`${API_BASE_URL}/getVideoInfo?url=${encodeURIComponent(item.url)}`);
+              const info = await infoResponse.json();
+              return {
+                url: item.url,
+                channelName: info.channelName || 'Unknown Channel',
+                type: item.type
+              };
+            } else {
+              // Custom streaming URLs
+              return {
+                url: item.url,
+                channelName: item.url.includes('tabii.com') ? 'Tabii TV' : new URL(item.url).hostname,
+                type: item.type
+              };
+            }
           } catch (error) {
             console.error('Error fetching channel info:', error);
             return {
-              url,
-              channelName: 'Unknown Channel'
+              url: item.url,
+              channelName: 'Unknown Channel',
+              type: item.type
             };
           }
         })
@@ -52,16 +65,18 @@ const App: React.FC = () => {
   }, [loadChannelList]);
 
   const addNewVideo = async () => {
-    const url = prompt('Enter YouTube video URL:');
+    const url = prompt('Enter video URL (YouTube or streaming link):');
     if (!url) return;
 
     try {
+      const type = url.includes('youtube.com') || url.includes('youtu.be') ? 'youtube' : 'custom';
+      
       const response = await fetch(`${API_BASE_URL}/addVideo`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, type }),
       });
 
       if (!response.ok) {
@@ -76,8 +91,9 @@ const App: React.FC = () => {
     }
   };
 
-  const playVideo = (url: string) => {
-    setCurrentVideo(url);
+  const playVideo = (video: Video) => {
+    setCurrentVideo(video.url);
+    setCurrentType(video.type);
   };
 
   const getVideoId = (url: string): string => {
@@ -95,20 +111,38 @@ const App: React.FC = () => {
     return '';
   };
 
+  const renderVideoPlayer = () => {
+    if (!currentVideo) {
+      return <div className="no-video">Select a channel to play</div>;
+    }
+
+    if (currentType === 'youtube') {
+      return (
+        <iframe
+          src={`https://www.youtube.com/embed/${getVideoId(currentVideo)}`}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title="YouTube video player"
+        />
+      );
+    } else {
+      return (
+        <iframe
+          src={currentVideo}
+          frameBorder="0"
+          allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title="Custom video player"
+        />
+      );
+    }
+  };
+
   return (
     <div className="container">
       <div className="video-container">
-        {currentVideo ? (
-          <iframe
-            src={`https://www.youtube.com/embed/${getVideoId(currentVideo)}`}
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            title="YouTube video player"
-          ></iframe>
-        ) : (
-          <div className="no-video">Select a channel to play</div>
-        )}
+        {renderVideoPlayer()}
       </div>
       <div className="list-container">
         <div className="header">
@@ -126,8 +160,8 @@ const App: React.FC = () => {
             videos.map((video, index) => (
               <div
                 key={index}
-                className="channel-item"
-                onClick={() => playVideo(video.url)}
+                className={`channel-item ${video.type === 'custom' ? 'custom-stream' : ''}`}
+                onClick={() => playVideo(video)}
               >
                 {video.channelName}
               </div>
