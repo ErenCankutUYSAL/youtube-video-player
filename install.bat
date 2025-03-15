@@ -1,101 +1,120 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Scriptin bulunduğu dizine geç
+:: Change to the script's directory
 cd /d "%~dp0"
 
-echo [92mYouTube Video Player Kurulum Scripti[0m
+echo [92mYouTube Video Player Installation Script[0m
 echo ======================================
 
-:: Administrator yetkisi kontrolü
+:: Check for administrator privileges
 net session >nul 2>&1
 if %errorLevel% == 0 (
-    echo [92mAdministrator yetkileri mevcut[0m
+    echo [92mAdministrator privileges verified[0m
 ) else (
-    echo [91mBu script administrator yetkisi gerektirmektedir[0m
-    echo Lütfen scripti administrator olarak çalıştırın
+    echo [91mThis script requires administrator privileges[0m
+    echo Please run this script as administrator
     pause
     exit /b 1
 )
 
-:: Chocolatey kontrolü ve kurulumu
+:: Check and install Chocolatey
 where choco >nul 2>&1
 if %errorLevel% == 1 (
-    echo [93mChocolatey kuruluyor...[0m
+    echo [93mInstalling Chocolatey...[0m
     @powershell -NoProfile -ExecutionPolicy Bypass -Command "iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))"
     if !errorLevel! == 0 (
-        echo [92mChocolatey başarıyla kuruldu[0m
-        :: Yeni PATH'i almak için ortam değişkenlerini yenile
+        echo [92mChocolatey installed successfully[0m
         refreshenv
     ) else (
-        echo [91mChocolatey kurulumu başarısız[0m
+        echo [91mChocolatey installation failed[0m
         pause
         exit /b 1
     )
 )
 
-:: Node.js kontrolü ve kurulumu
+:: Check and install Node.js
 where node >nul 2>&1
 if %errorLevel% == 1 (
-    echo [93mNode.js kuruluyor...[0m
+    echo [93mInstalling Node.js...[0m
     choco install nodejs -y
     if !errorLevel! == 0 (
-        echo [92mNode.js başarıyla kuruldu[0m
-        :: Yeni PATH'i almak için ortam değişkenlerini yenile
+        echo [92mNode.js installed successfully[0m
         refreshenv
     ) else (
-        echo [91mNode.js kurulumu başarısız[0m
+        echo [91mNode.js installation failed[0m
         pause
         exit /b 1
     )
 )
 
-:: FFmpeg kontrolü ve kurulumu
+:: Check and install FFmpeg
 where ffmpeg >nul 2>&1
 if %errorLevel% == 1 (
-    echo [93mFFmpeg kuruluyor...[0m
+    echo [93mInstalling FFmpeg...[0m
     choco install ffmpeg -y
     if !errorLevel! == 0 (
-        echo [92mFFmpeg başarıyla kuruldu[0m
+        echo [92mFFmpeg installed successfully[0m
     ) else (
-        echo [91mFFmpeg kurulumu başarısız[0m
+        echo [91mFFmpeg installation failed[0m
         pause
         exit /b 1
     )
 )
 
-:: Node.js sürüm kontrolü
+:: Check Node.js version
 for /f "tokens=*" %%i in ('node -v') do set NODE_VERSION=%%i
-echo [92mNode.js sürümü: %NODE_VERSION%[0m
+echo [92mNode.js version: %NODE_VERSION%[0m
 
-:: package.json kontrolü
+:: Check package.json
 if not exist "package.json" (
-    echo [91mHata: package.json dosyası bulunamadı![0m
-    echo Lütfen scripti projenin ana dizininde çalıştırın.
+    echo [91mError: package.json not found![0m
+    echo Please run this script in the project root directory.
     pause
     exit /b 1
 )
 
-:: npm paketlerinin kurulumu
-echo [93mnpm paketleri kuruluyor...[0m
+:: Install npm packages
+echo [93mInstalling npm packages...[0m
 call npm install --no-audit
 if %errorLevel% == 0 (
-    echo [92mnpm paketleri başarıyla kuruldu[0m
+    echo [92mnpm packages installed successfully[0m
 ) else (
-    echo [91mnpm paketleri kurulumu başarısız[0m
-    echo Hata detayları için npm-debug.log dosyasını kontrol edin
+    echo [91mnpm packages installation failed[0m
+    echo Check npm-debug.log for error details
     pause
     exit /b 1
 )
 
-:: Recordings klasörü oluşturma
+:: Create recordings directory
 if not exist "recordings" mkdir recordings
 
-echo [92mKurulum tamamlandı![0m
+echo [92mInstallation completed successfully![0m
 echo ======================================
-echo Kullanım:
-echo 1. Sunucuyu başlatmak için: [93mnpm run server[0m
-echo 2. React uygulamasını başlatmak için: [93mnpm start[0m
-echo 3. Kayıtlar 'recordings' klasöründe saklanacaktır
 
+:: Ask user if they want to start the application
+echo Would you like to start the application now? (Y/N)
+choice /c YN /n
+if errorlevel 2 goto END
+if errorlevel 1 goto STARTAPP
+
+:STARTAPP
+:: Start the server and React app
+echo [93mStarting the application...[0m
+
+:: Start the server in a new window
+start "YouTube Video Player Server" cmd /c "echo [93mStarting server...[0m && npm run server"
+
+:: Wait for the server to start
+echo [93mWaiting for server to initialize (5 seconds)...[0m
+timeout /t 5 /nobreak > nul
+
+:: Start the React app in a new window
+start "YouTube Video Player Client" cmd /c "echo [93mStarting React app...[0m && npm start"
+
+echo [92mApplication started successfully![0m
+echo Server window and React app window should now be open
+echo You can close this window if everything is running correctly
+
+:END
 pause
