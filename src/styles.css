@@ -96,15 +96,6 @@ body {
   border-bottom: none;
 }
 
-.channel-item.custom-stream {
-  color: #2196F3;
-}
-
-.channel-item.custom-stream::before {
-  content: "🔴";
-  margin-right: 8px;
-}
-
 .no-video {
   display: flex;
   align-items: center;
